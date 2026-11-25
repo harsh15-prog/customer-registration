@@ -1,4 +1,5 @@
 import os
+import re
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
@@ -24,7 +25,6 @@ class MysqlTests(unittest.TestCase):
             initial_count = cursor.fetchone()[0]
 
         config = {
-            "LOCAL_SKIP_TURNSTILE": "1",
             "SUBMISSION_FINGERPRINT_SECRET": "f" * 40,
             "RATE_LIMIT_SECRET": "r" * 40,
             "GOOGLE_WEBHOOK_SECRET": "g" * 40,
@@ -35,7 +35,10 @@ class MysqlTests(unittest.TestCase):
 
         def post_web(_):
             with app.test_client() as client:
-                return client.post("/api/customers", json=details, headers={"Idempotency-Key": key})
+                form_html = client.get("/form").get_data(as_text=True)
+                ticket = re.search(r'name="form_ticket" value="([^"]+)"', form_html)[1]
+                return client.post("/api/customers", json={**details, "form_ticket": ticket},
+                                   headers={"Idempotency-Key": key})
 
         with patch.dict(os.environ, config), ThreadPoolExecutor(max_workers=4) as pool:
             web = list(pool.map(post_web, range(4)))

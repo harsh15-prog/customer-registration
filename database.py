@@ -9,6 +9,9 @@ from contextlib import closing
 import pymysql
 
 
+MYSQL_REQUIRED = ("MYSQL_HOST", "MYSQL_DATABASE", "MYSQL_USER", "MYSQL_PASSWORD")
+
+
 class DatabaseUnavailable(Exception):
     pass
 
@@ -18,8 +21,7 @@ class SubmissionConflict(Exception):
 
 
 def connect():
-    keys = ("MYSQL_HOST", "MYSQL_DATABASE", "MYSQL_USER", "MYSQL_PASSWORD")
-    if not all(os.environ.get(key) for key in keys):
+    if not all(os.environ.get(key) for key in MYSQL_REQUIRED):
         raise DatabaseUnavailable("MySQL configuration is incomplete.")
     try:
         tls = ssl.create_default_context()

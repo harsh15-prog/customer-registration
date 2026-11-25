@@ -52,7 +52,6 @@ dob.addEventListener("input", () => {
 form.addEventListener("reset", () => {
   clearErrors();
   rememberKey(null);
-  window.turnstile?.reset();
 });
 
 form.addEventListener("submit", async event => {
@@ -65,7 +64,7 @@ form.addEventListener("submit", async event => {
     dob: fields.get("dob"),
     balance: fields.get("balance"),
     website: fields.get("website"),
-    turnstile_token: fields.get("cf-turnstile-response"),
+    form_ticket: fields.get("form_ticket"),
   };
   const errors = {};
   if (!payload.name) errors.name = "Enter your full name.";
@@ -79,11 +78,6 @@ form.addEventListener("submit", async event => {
     showFieldErrors(errors);
     return;
   }
-  if (form.querySelector(".cf-turnstile") && !payload.turnstile_token) {
-    formError.textContent = "Complete the security check before submitting.";
-    return;
-  }
-
   setBusy(true);
   try {
     rememberKey(submissionKey || savedKey() || crypto.randomUUID());
@@ -111,7 +105,6 @@ form.addEventListener("submit", async event => {
     formError.textContent = "We couldn’t confirm your registration. Try again with the same details.";
   } finally {
     setBusy(false);
-    if (!form.hidden) window.turnstile?.reset();
   }
 });
 

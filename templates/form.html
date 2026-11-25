@@ -3,9 +3,6 @@
 {% block layout %}page page-form{% endblock %}
 {% block scripts %}
 <script src="/static/js/form.js" defer></script>
-{% if configured and turnstile_site_key %}
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-{% endif %}
 {% endblock %}
 {% block content %}
 <a class="back" href="{{ url_for('index') }}">← All registration options</a>
@@ -20,6 +17,7 @@
   <noscript><p class="notice">Enable JavaScript to calculate your age and submit the form.</p></noscript>
   <form id="customer-form" data-endpoint="{{ url_for('web_submission') }}" data-today="{{ today }}">
     <fieldset {% if not configured %}disabled{% endif %}>
+      <input type="hidden" name="form_ticket" value="{{ form_ticket }}">
       <div class="field">
         <label for="customer_id">Customer ID</label>
         <input id="customer_id" type="text" placeholder="Assigned after submission" readonly>
@@ -54,9 +52,6 @@
         <label for="website">Leave this field empty</label>
         <input id="website" name="website" tabindex="-1" autocomplete="off">
       </div>
-      {% if configured and turnstile_site_key %}
-      <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" data-action="register" data-size="compact"></div>
-      {% endif %}
       <div class="buttons">
         <button class="submit" type="submit" id="submit" disabled><span class="spinner" aria-hidden="true" hidden></span> <span id="submit-label">Submit registration</span></button>
         <button class="reset" type="reset">Reset</button>

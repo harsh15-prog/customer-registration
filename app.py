@@ -1,16 +1,15 @@
 import hmac
-import json
 import os
 import re
+import secrets
 from datetime import datetime
-from urllib.error import URLError
-from urllib.parse import urlencode, urlsplit
-from urllib.request import urlopen
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 import pymysql
 from dotenv import load_dotenv
 from flask import Flask, jsonify, redirect, render_template, request
+from itsdangerous import BadData, URLSafeTimedSerializer
 
 import database
 from validation import MIN_DOB, validate_customer
@@ -39,8 +38,7 @@ def response_headers(response):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; "
-        "frame-src https://challenges.cloudflare.com; base-uri 'none'; "
+        "default-src 'self'; base-uri 'none'; "
         "object-src 'none'; frame-ancestors 'none'; form-action 'self'"
     )
     if not request.path.startswith("/static/"):
@@ -55,11 +53,13 @@ def index():
 
 @app.get("/form")
 def form():
-    ready = local_skip_turnstile() or bool(turnstile_config())
+    rate_secret = os.environ.get("RATE_LIMIT_SECRET", "")
+    fingerprint_secret = os.environ.get("SUBMISSION_FINGERPRINT_SECRET", "")
+    ready = (len(rate_secret) >= 32 and len(fingerprint_secret) >= 32
+             and all(os.environ.get(key) for key in database.MYSQL_REQUIRED))
+    ticket = form_signer(rate_secret).dumps(secrets.token_urlsafe(18)) if ready else ""
     return render_template("form.html", today=today(), earliest=MIN_DOB,
-                           configured=ready and bool(os.environ.get("MYSQL_HOST")),
-                           turnstile_site_key=None if local_skip_turnstile()
-                           else os.environ.get("TURNSTILE_SITE_KEY"))
+                           configured=ready, form_ticket=ticket)
 
 
 @app.get("/google-form")
@@ -86,32 +86,18 @@ def too_large(error):
     return problem("The request is too large.", 413)
 
 
-def local_skip_turnstile():
-    return not os.environ.get("VERCEL") and os.environ.get("LOCAL_SKIP_TURNSTILE") == "1"
+def form_signer(secret):
+    return URLSafeTimedSerializer(secret, salt="customer-registration-form")
 
 
-def turnstile_config():
-    values = tuple(os.environ.get(key) for key in (
-        "TURNSTILE_SITE_KEY", "TURNSTILE_SECRET_KEY", "TURNSTILE_HOSTNAME"
-    ))
-    return values if all(values) else None
-
-
-def verify_turnstile(token):
-    if local_skip_turnstile():
-        return True
-    config = turnstile_config()
-    if not config:
-        raise database.DatabaseUnavailable("Registration verification is not configured.")
-    if not isinstance(token, str) or not 1 <= len(token) <= 2048:
+def verify_form_ticket(ticket, secret):
+    if not isinstance(ticket, str) or not 1 <= len(ticket) <= 256:
         return False
-    _, secret, hostname = config
-    params = urlencode({"secret": secret, "response": token}).encode("ascii")
-    with urlopen("https://challenges.cloudflare.com/turnstile/v0/siteverify",
-                 data=params, timeout=5) as response:
-        result = json.load(response)
-    return (result.get("success") is True and result.get("hostname") == hostname
-            and result.get("action") == "register")
+    try:
+        form_signer(secret).loads(ticket, max_age=7200)
+    except BadData:
+        return False
+    return True
 
 
 def client_address():
@@ -134,6 +120,10 @@ def submit(source):
         fingerprint_secret = os.environ.get("SUBMISSION_FINGERPRINT_SECRET", "").encode("utf-8")
         if len(rate_secret) < 32 or len(fingerprint_secret) < 32:
             raise database.DatabaseUnavailable("Submission secrets are not configured.")
+        if source == "web" and (
+            data.get("website") or not verify_form_ticket(data.get("form_ticket"), rate_secret)
+        ):
+            return problem("Reload the registration page to refresh the security check, then try again.", 403)
         delay = database.consume_rate_limit(source, client_address(), rate_secret)
         if delay:
             response, status = problem("Too many attempts. Try again shortly.", 429)
@@ -142,16 +132,11 @@ def submit(source):
         customer, errors = validate_customer(data, today())
         if errors:
             return problem("Check the highlighted fields.", 422, errors)
-        if source == "web" and (
-            data.get("website") or not verify_turnstile(data.get("turnstile_token"))
-        ):
-            return problem("Complete the security check and try again.", 403)
-
         customer_id, replayed = database.register(customer, source, key, fingerprint_secret)
         return jsonify(customer_id=customer_id, replayed=replayed), 200 if replayed else 201
     except database.SubmissionConflict:
         return problem("That submission key was already used with different details.", 409)
-    except (database.DatabaseUnavailable, pymysql.MySQLError, OSError, URLError, ValueError) as exc:
+    except (database.DatabaseUnavailable, pymysql.MySQLError, OSError, ValueError) as exc:
         app.logger.error("Registration dependency failure (%s, %s)", source, type(exc).__name__)
         return problem("Registration is temporarily unavailable. Try again shortly.", 503)
 
