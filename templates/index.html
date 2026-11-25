@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="intro">
+  <h1>Register as a customer</h1>
+  <p>Choose how you’d like to submit your registration.</p>
+</section>
+<nav class="options" aria-label="Registration options">
+  <a class="option option-primary" href="{{ url_for('form') }}">
+    <span class="option-icon" aria-hidden="true">✎</span>
+    <h2>Custom Registration Form</h2>
+    <p>See your calculated age as you fill in your details and get your customer ID after submission.</p>
+    <span class="option-action">Open registration <span aria-hidden="true">→</span></span>
+  </a>
+  <a class="option" href="{{ url_for('google_form') }}">
+    <span class="option-icon" aria-hidden="true">☷</span>
+    <h2>Google Registration Form</h2>
+    <p>Submit your details through Google Forms. Your customer ID and age are assigned after submission.</p>
+    <span class="option-action">Open Google Form <span aria-hidden="true">↗</span></span>
+  </a>
+</nav>
+<aside class="privacy" aria-labelledby="privacy-title">
+  <h2 id="privacy-title">Privacy notice</h2>
+  <p>We collect your name, email, date of birth and account balance to create your customer record. Your date of birth is used to calculate your age. If you choose Google Forms, Google also stores your responses.</p>
+</aside>
+{% endblock %}

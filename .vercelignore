@@ -1,0 +1,11 @@
+.git/
+.venv/
+.env
+.env.*
+*.pem
+*.key
+*.log
+__pycache__/
+tests/
+google_apps_script/
+sql/

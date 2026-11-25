@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+.venv/
+.vercel/
+__pycache__/
+*.py[cod]
+*.pem
+*.key
+*.log
+.clasprc.json
+.clasp.json
