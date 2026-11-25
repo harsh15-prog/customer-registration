@@ -55,7 +55,7 @@
         <input id="website" name="website" tabindex="-1" autocomplete="off">
       </div>
       {% if configured and turnstile_site_key %}
-      <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" data-action="register" data-size="flexible"></div>
+      <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" data-action="register" data-size="compact"></div>
       {% endif %}
       <div class="buttons">
         <button class="submit" type="submit" id="submit" disabled><span class="spinner" aria-hidden="true" hidden></span> <span id="submit-label">Submit registration</span></button>
